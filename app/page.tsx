@@ -18,7 +18,7 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+    <div className='p-4'>
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
         <OrderBook bids={orderbookData?.bids} asks={orderbookData?.asks} />
       </main>
@@ -28,21 +28,31 @@ export default function Home() {
 
 
 function generateMockLeveledOrders(spread: number = 0.1): { bids: Order[]; asks: Order[] } {
-
   const getRandomQuantity = () => Math.floor(Math.random() * 10) + 1;
-  const getRandomPrice = (base: number) => base + (Math.random() * spread - spread / 2);
+  const getRandomSize = (n = 900) => Math.floor(Math.random() * n) + 1;
 
-  const bids = [
-    { price: getRandomPrice(100), quantity: getRandomQuantity() },
-    { price: getRandomPrice(99), quantity: getRandomQuantity() },
-    { price: getRandomPrice(98), quantity: getRandomQuantity() },
-  ];
+  function getPrices(base: number, levels: number, side: 'buy' | 'sell') {
+    return Array.from({ length: levels }, (_, i) => {
+      if (side === 'buy') {
+        return base - i * spread;
+      } else {
+        return base + i * spread;
+      }
+    });
+  }
 
-  const asks = [
-    { price: getRandomPrice(101), quantity: getRandomQuantity() },
-    { price: getRandomPrice(102), quantity: getRandomQuantity() },
-    { price: getRandomPrice(103), quantity: getRandomQuantity() },
-  ];
+  const bids = getPrices(99, 20, 'buy').map(price => ({
+    price,
+    quantity: getRandomQuantity(),
+    size: getRandomSize(100)
+  }));
+
+  const asks = getPrices(101, 20, 'sell').map(price => ({
+    price,
+    quantity: getRandomQuantity(),
+    size: getRandomSize(75)
+  }));
 
   return { bids, asks };
+
 }

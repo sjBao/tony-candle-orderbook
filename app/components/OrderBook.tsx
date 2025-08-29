@@ -51,8 +51,7 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
           <div>
             <div className="grid grid-cols-4 gap-5">
               <span className='font-semibold'>Price</span>
-              {/* <span className='font-semibold text-right'>ppl</span> */}
-              <span className='font-semibold text-right'>Size</span>
+              <span className='font-semibold text-right w-fit'>Size</span>
               <span className='font-semibold text-right'>Total</span>
             </div>
             {askRowData.map((ask, index) => {
@@ -60,7 +59,7 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
                 <div key={index} className="grid grid-cols-4 gap-5">
                   <span className='text-red-400'>{ask.price.toFixed(2)}</span>
                   {/* <span className='text-right'>{ask.quantity}</span> */}
-                  <span className='text-right'>{ask.size}</span>
+                  <span className='text-right w-fit'>{ask.size}</span>
                   <span className='text-right'>{createFormatter({ preset: "$0,0.00" })(ask.total)}</span>
                   <div className='border border-dashed border-gray-800'>
                     <div style={{ width: `${(ask.total / (highestVolume) * 100)}%` }} className='bg-red-400 h-full'></div>
@@ -77,8 +76,7 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
             {bidRowData.map((bid, index) => (
               <div key={index} className="grid grid-cols-4 gap-5">
                 <span className='text-green-400'>{bid.price.toFixed(2)}</span>
-                {/* <span className='text-right'>{bid.quantity}</span> */}
-                <span className='text-right'>{bid.size}</span>
+                <span className='text-right w-fit'>{bid.size}</span>
                 <span className='text-right'>{createFormatter({ preset: "$0,0.00" })(bid.total)}</span>
                 <div className='border border-dashed border-gray-800'>
                     <div style={{ width: `${(bid.total / (highestVolume) * 100)}%` }} className='bg-green-400 h-full'></div>

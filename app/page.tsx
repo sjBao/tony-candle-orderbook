@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import OrderBook, { type Order } from './components/OrderBook';
 import TradingViewTsx from './components/TradingView.tsx';
+import LightweightChart from './components/LightweightChart';
 
 export default function Home() {
   const mockSocket = useRef<NodeJS.Timeout | null>(null);
@@ -21,7 +22,8 @@ export default function Home() {
   return (
     <div className='p-4 h-screen flex flex-col'>
       <main className="flex gap-[32px] item-stretch row-start-2 items-center sm:items-start flex-grow">
-        <TradingViewTsx />
+        {/* <TradingViewTsx /> */}
+        <LightweightChart />
         <OrderBook bids={orderbookData?.bids} asks={orderbookData?.asks} />
       </main>
     </div>

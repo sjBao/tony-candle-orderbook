@@ -1,8 +1,8 @@
 
 "use client";
 
-import { createChart, ColorType, IChartApi, ISeriesApi, SeriesType, SeriesOptionsMap, SeriesDefinition, LineSeries } from 'lightweight-charts';
-import React, { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { CandlestickData, CandlestickSeries, ColorType, createChart, IChartApi, UTCTimestamp } from 'lightweight-charts';
+import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 
 export const ChartContext = createContext<IChartApi | null>(null);
 
@@ -15,6 +15,10 @@ const ChartComponent = forwardRef((props: any, ref) => {
         if (!chartContainerRef.current) return;
 
         const chart = createChart(chartContainerRef.current, {
+            timeScale: {
+                timeVisible: true,
+                secondsVisible: true,
+            },
             width: chartContainerRef.current.clientWidth,
             height: 300,
             layout: {
@@ -66,28 +70,67 @@ ChartComponent.displayName = 'ChartComponent';
 
 export function SeriesComponent() {
     const chart = useContext(ChartContext);
-    const [series, setSeries] = useState<ISeriesApi<T> | null>(null);
-
+    const [series, setSeries] = useState<ReturnType<IChartApi['addSeries']> | null>(null);
 
     useEffect(() => {
         if (!chart) return;
-        const newSeries = chart?.addSeries(LineSeries);
+        const newSeries = chart.addSeries(CandlestickSeries, {
+            upColor: "#26a69a",
+            downColor: "#ef5350",
+            borderDownColor: "#ef5350",
+            borderUpColor: "#26a69a",
+            wickDownColor: "#ef5350",
+            wickUpColor: "#26a69a",
+            title: "BTC/USD",
+        });
         setSeries(newSeries);
         return () => chart.removeSeries(newSeries);
     }, [chart]);
 
-    // Todo: Replace this with simulated live data once ready
+    // Todo:  Replace this with simulated live data once ready
     useEffect(() => {
         if (!series) return;
+        // Start with 5 candles, beginning at the current time, 1 minute apart
+        const now = new Date();
+        let data: CandlestickData[] = [];
+        let base = 100;
+        for (let i = 0; i < 5; i++) {
+            const candleTime = new Date(now.getTime() + i * 60000); // 1 minute increments
+            const open = base + (Math.random() - 0.5) * 4;
+            const close = open + (Math.random() - 0.5) * 4;
+            const high = Math.max(open, close) + Math.random() * 2;
+            const low = Math.min(open, close) - Math.random() * 2;
+            data.push({
+                time: candleTime.getTime() as UTCTimestamp,
+                open,
+                high,
+                low,
+                close,
+            });
+            base = close;
+        }
+        series.setData(data);
 
+        // Simulate real-time updates every 60 seconds (standard 1m interval)
+        let lastTime = new Date(now.getTime() + 4 * 60000); // last candle's time
+        let lastClose = data[data.length - 1].close;
         const interval = setInterval(() => {
-            const lastBar = series.data()[series.data().length - 1];
-            const nextTime = lastBar ? lastBar.time + 60 : Math.floor(Date.now() / 1000);
-            const nextValue = lastBar ? lastBar.value + (Math.random() - 0.5) * 2 : 100;
-
-            series.update({ time: nextTime, value: nextValue });
-        }, 100);
-
+            lastTime = new Date(lastTime.getTime() + 60000); // increment by 1 minute
+            const time = lastTime.getTime() as UTCTimestamp;
+            const open = lastClose;
+            const close = open + (Math.random() - 0.5) * 4;
+            const high = Math.max(open, close) + Math.random() * 2;
+            const low = Math.min(open, close) - Math.random() * 2;
+            const newCandle: CandlestickData = {
+                time,
+                open,
+                high,
+                low,
+                close,
+            };
+            series.update(newCandle);
+            lastClose = close;
+        }, 60000);
         return () => clearInterval(interval);
     }, [series]);
 
@@ -97,15 +140,8 @@ export function SeriesComponent() {
 export default function LightweightChart() {
     const chartRef = useRef<IChartApi>(null);
 
-    useEffect(() => {
-        if (chartRef.current) {
-            const timeScale = chartRef.current.timeScale();
-            console.log(timeScale.getVisibleRange());
-        }
-    }, []);
-
     return (
-        <ChartComponent className="w-full" ref={chartRef}>
+        <ChartComponent ref={chartRef} className="w-3/4">
             <SeriesComponent />
         </ChartComponent>
     );

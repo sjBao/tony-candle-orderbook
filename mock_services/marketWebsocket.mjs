@@ -47,7 +47,7 @@ const broadcast = async () => {
     const asks = parseOrders(asksResult[1]);
 
     const orderBookState = { bids, asks };
-    const data = JSON.stringify(orderBookState);
+    const data = JSON.stringify({type: "orderbook", ...orderBookState});
 
     for (const client of wss.clients) {
       if (client.readyState === 1) { // 1 means OPEN
@@ -135,3 +135,40 @@ engine.on('order_filled', ({ bidId, askId, filledBid, filledAsk }) => {
 
 // Broadcast updates every 100ms
 setInterval(broadcast, 250);
+
+// --- CANDLESTICK AGGREGATION FOR DEMO PURPOSES ---
+// In a real system, this should be a separate service for scalability and reliability.
+// Here, we aggregate trades into candlesticks in the WebSocket server for real-time demo only.
+
+const TRADE_INTERVAL = 60 * 1000; // 1 minute
+let tradeBuffer = [];
+let candles = [];
+
+// Listen for trade events from the matching engine
+engine.on('trade', (trade) => {
+  tradeBuffer.push(trade);
+});
+
+// Aggregate trades into candlesticks every interval
+setInterval(() => {
+  if (tradeBuffer.length === 0) return;
+  const open = tradeBuffer[0].price;
+  const close = tradeBuffer[tradeBuffer.length - 1].price;
+  const high = Math.max(...tradeBuffer.map(t => t.price));
+  const low = Math.min(...tradeBuffer.map(t => t.price));
+  const volume = tradeBuffer.reduce((sum, t) => sum + t.size, 0);
+  const candle = {
+    time: Date.now(),
+    open, high, low, close, volume
+  };
+  candles.push(candle);
+  tradeBuffer = [];
+  // Broadcast the new candle to all clients
+  for (const client of wss.clients) {
+    if (client.readyState === 1) {
+      client.send(JSON.stringify({ type: 'candle', candle }));
+    }
+  }
+}, TRADE_INTERVAL);
+
+// --- END CANDLESTICK AGGREGATION ---

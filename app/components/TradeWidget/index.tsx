@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useContext } from 'react';
+import { useWebSocketSubscription, WebSocketContext } from '../WebSocketProvider';
 
 export default function TradeWidget() {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
@@ -18,61 +19,52 @@ export default function TradeWidget() {
   }>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [bestPrice, setBestPrice] = useState<string>('');
-  const wsRef = useRef<WebSocket | null>(null);
 
-  useEffect(() => {
-    wsRef.current = new window.WebSocket('ws://localhost:4000');
-    wsRef.current.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'order_result') {
-          let toastMsg = '';
-          if (msg.status === "filled") {
-            toastMsg = `Order filled! Order ID: ${msg.orderId}`;
-          } else if (msg.status === "partial") {
-            toastMsg = `Order partially filled! Order ID: ${msg.orderId}`;
-          } else if (msg.status === "canceled") {
-            toastMsg = `Order canceled (no liquidity)! Order ID: ${msg.orderId}`;
-          }
-          if (toastMsg) setToast(toastMsg);
-          setTimeout(() => setToast(null), 4000);
-          setOrders(prev => ({
-            ...prev,
-            [msg.orderId]: {
-              orderId: msg.orderId,
-              side: msg.order.side || prev[msg.orderId]?.side,
-              price: msg.order.price || prev[msg.orderId]?.price,
-              quantity: msg.order.quantity || prev[msg.orderId]?.quantity,
-              status: msg.status,
-              filled: msg.order.filled,
-              pricesFilled: msg.order.pricesFilled,
-            },
-          }));
-        }
-        // --- Update best price from order book ---
-        if (msg.bids && msg.asks) {
-          if (orderType === 'market') {
-            if (side === 'buy' && msg.asks.length > 0) {
-              setBestPrice(msg.asks[0].price.toString());
-            } else if (side === 'sell' && msg.bids.length > 0) {
-              setBestPrice(msg.bids[0].price.toString());
-            }
-          }
-        }
-      } catch {}
-    };
-    return () => {
-      wsRef.current?.close();
-    };
-  }, [orderType, side]);
+  const wsContext = useContext(WebSocketContext);
+
+  useWebSocketSubscription('order_result', (msg) => {
+    let toastMsg = '';
+    if (msg.status === "filled") {
+      toastMsg = `Order filled! Order ID: ${msg.orderId}`;
+    } else if (msg.status === "partial") {
+      toastMsg = `Order partially filled! Order ID: ${msg.orderId}`;
+    } else if (msg.status === "canceled") {
+      toastMsg = `Order canceled (no liquidity)! Order ID: ${msg.orderId}`;
+    }
+    if (toastMsg) setToast(toastMsg);
+    setTimeout(() => setToast(null), 4000);
+    setOrders(prev => ({
+      ...prev,
+      [msg.orderId]: {
+        orderId: msg.orderId,
+        side: msg.order.side || prev[msg.orderId]?.side,
+        price: msg.order.price || prev[msg.orderId]?.price,
+        quantity: msg.order.quantity || prev[msg.orderId]?.quantity,
+        status: msg.status,
+        filled: msg.order.filled,
+        pricesFilled: msg.order.pricesFilled,
+      },
+    }));
+  });
+
+  useWebSocketSubscription('orderbook', (msg) => {
+    if (orderType === 'market') {
+      if (side === 'buy' && msg.asks.length > 0) {
+        setBestPrice(msg.asks[0].price.toString());
+      } else if (side === 'sell' && msg.bids.length > 0) {
+        setBestPrice(msg.bids[0].price.toString());
+      }
+    }
+  });
 
   const handleSubmit = () => {
+    if (!wsContext?.ws) return;
     if (orderType === 'market') {
-      wsRef.current?.send(
+      wsContext.ws.send(
         JSON.stringify({ type: 'market_order', side, size: quantity })
       );
     } else {
-      wsRef.current?.send(
+      wsContext.ws.send(
         JSON.stringify({ type: 'limit_order', side, size: quantity, price })
       );
     }

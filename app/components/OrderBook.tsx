@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { createFormatter } from '../lib/formatter';
+import { useWebSocketSubscription } from './WebSocketProvider';
 
 export interface Order {
   price: number;
@@ -25,33 +26,10 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
   const [wsReady, setWsReady] = useState(false);
   const [orderbookData, setOrderbookData] = useState<{ bids: Order[]; asks: Order[] }>({ bids, asks });
 
-  useEffect(() => {
-    const ws = new window.WebSocket('ws://localhost:4000');
-    ws.onopen = () => {
-      setWsReady(true);
-    };
-    ws.onmessage = (event) => {
-      handleSocketMessage(event);
-    };
-    ws.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-    };
-    return () => {
-      ws.close();
-    };
-  }, []);
-
-  function handleSocketMessage(event: MessageEvent) {
-    try {
-      const data = JSON.parse(event.data);
-      setOrderbookData({ bids: data.bids, asks: data.asks });
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  }
+  useWebSocketSubscription('orderbook', (msg) => {
+    setOrderbookData({ bids: msg.bids || [], asks: msg.asks || [] });
+    setWsReady(true);
+  });
 
   const askRowData = useMemo(() => {
     return orderbookData?.asks.reduce<PriceRowData[]>((acc, order) => {

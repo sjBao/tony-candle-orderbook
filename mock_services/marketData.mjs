@@ -48,7 +48,6 @@ class MatchingEngine extends EventEmitter {
     if (parseFloat(bidPrice) >= parseFloat(askPrice)) {
       // Match found
       const tradeSize = Math.min(parseFloat(bidSize), parseFloat(askSize));
-      console.log(`${new Date().getTime()} - Trade executed: ${tradeSize} BTC @ ${askPrice} USDC`);
 
 
       let filledBid = false, filledAsk = false;
@@ -81,6 +80,9 @@ class MatchingEngine extends EventEmitter {
       } else {
         await redis.zrem(ASKS_KEY, askMember);
       }
+
+      console.log(`${new Date().getTime()} - Trade executed: ${tradeSize} BTC @ ${askPrice} USDC`);
+      this.emit('trade', { price: parseFloat(askPrice), size: tradeSize, timestamp: Date.now() });
     }
   }
 
@@ -150,6 +152,38 @@ class MatchingEngine extends EventEmitter {
 }
 
 export const engine = new MatchingEngine();
+
+// --- CANDLESTICK AGGREGATION FOR DEMO PURPOSES ---
+// In a real system, this should be a separate service for scalability and reliability.
+// Here, we aggregate trades into candlesticks in the matching engine for real-time demo only.
+
+const TRADE_INTERVAL = 60 * 1000; // 1 minute
+let tradeBuffer = [];
+let candles = [];
+
+// Listen for trade events from the matching engine
+engine.on('trade', (trade) => {
+  tradeBuffer.push(trade);
+});
+
+// Aggregate trades into candlesticks every interval
+setInterval(() => {
+  if (tradeBuffer.length === 0) return;
+  const open = tradeBuffer[0].price;
+  const close = tradeBuffer[tradeBuffer.length - 1].price;
+  const high = Math.max(...tradeBuffer.map(t => t.price));
+  const low = Math.min(...tradeBuffer.map(t => t.price));
+  const volume = tradeBuffer.reduce((sum, t) => sum + t.size, 0);
+  const candle = {
+    time: Date.now(),
+    open, high, low, close, volume
+  };
+  candles.push(candle);
+  tradeBuffer = [];
+  // Optionally emit or serve candles to other services
+}, TRADE_INTERVAL);
+
+// --- END CANDLESTICK AGGREGATION ---
 
 async function simulateEngine() {
   // Add a random order

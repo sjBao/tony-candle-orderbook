@@ -1,29 +1,96 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function TradeWidget() {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [order, setOrder] = useState<{ side: string; price: string; quantity: string } | null>(null);
+  const [orders, setOrders] = useState<Record<number, { orderId: number; side: string; price: string; quantity: string; status: string }>>({});
+  const [toast, setToast] = useState<string | null>(null);
+  const [bestPrice, setBestPrice] = useState<string>('');
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    wsRef.current = new window.WebSocket('ws://localhost:4000');
+    wsRef.current.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'order_result') {
+          if (msg.status === "filled") {
+            setToast(`Order fulfilled! Order ID: ${msg.orderId}`);
+          }
+          setTimeout(() => setToast(null), 4000);
+          setOrders(prev => ({
+            ...prev,
+            [msg.orderId]: {
+              orderId: msg.orderId,
+              side: msg.order.side || prev[msg.orderId]?.side,
+              price: msg.order.price || prev[msg.orderId]?.price,
+              quantity: msg.order.size || prev[msg.orderId]?.quantity,
+              status: msg.status || 'filled',
+            },
+          }));
+        }
+        // --- Update best price from order book ---
+        if (msg.bids && msg.asks) {
+          if (orderType === 'market') {
+            if (side === 'buy' && msg.asks.length > 0) {
+              setBestPrice(msg.asks[0].price.toString());
+            } else if (side === 'sell' && msg.bids.length > 0) {
+              setBestPrice(msg.bids[0].price.toString());
+            }
+          }
+        }
+      } catch {}
+    };
+    return () => {
+      wsRef.current?.close();
+    };
+  }, [orderType, side]);
 
   const handleSubmit = () => {
-    setOrder({ side, price, quantity });
-    // Next step: send order to "backend"
+    if (orderType === 'market') {
+      wsRef.current?.send(
+        JSON.stringify({ type: 'market_order', side, size: quantity })
+      );
+    } else {
+      wsRef.current?.send(
+        JSON.stringify({ type: 'limit_order', side, size: quantity, price })
+      );
+    }
+    setPrice('');
+    setQuantity('');
   };
 
   return (
     <div className="px-4 rounded-lg w-70 text-gray-100">
       <h3 className="text-lg font-semibold mb-4">Trade BTC/USDC</h3>
+      <div className="mb-3 flex justify-center gap-2">
+        <button
+          className={`px-4 py-1 rounded font-bold ${orderType === 'market' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+          onClick={() => setOrderType('market')}
+        >
+          Market
+        </button>
+        <button
+          className={`px-4 py-1 rounded font-bold ${orderType === 'limit' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+          onClick={() => setOrderType('limit')}
+        >
+          Limit
+        </button>
+      </div>
       <div className="mb-3">
         <label className="block mb-1 text-sm">Price:</label>
         <input
           type="number"
           value={price}
           onChange={e => setPrice(e.target.value)}
-          className="w-full px-2 py-1 rounded bg-gray-800 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-2 py-1 rounded bg-gray-800 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${orderType === 'market' ? 'opacity-50 cursor-not-allowed' : ''}`}
           min="0"
+          disabled={orderType === 'market'}
+          placeholder={orderType === 'market' && bestPrice ? `Best ${side === 'buy' ? 'Ask' : 'Bid'}: ${bestPrice}` : ''}
         />
       </div>
       <div className="mb-3">
@@ -53,16 +120,34 @@ export default function TradeWidget() {
       <button
         className="w-full py-2 rounded bg-blue-700 text-white font-bold disabled:opacity-50"
         onClick={handleSubmit}
-        disabled={!price || !quantity}
+        disabled={orderType === 'limit' ? !price || !quantity : !quantity}
       >
         Submit Order
       </button>
-      {order && (
+      {Object.keys(orders).length > 0 && (
         <div className="mt-4 bg-gray-800 p-3 rounded">
           <strong className="block mb-2">Order Preview:</strong>
-          <div>Side: {order.side}</div>
-          <div>Price: {order.price}</div>
-          <div>Quantity: {order.quantity}</div>
+          <ul className="space-y-2">
+            {Object.values(orders).map(order => (
+              <li
+                key={order.orderId}
+                className={`p-2 rounded flex flex-col ${order.status === 'filled' ? 'bg-gray-700 text-gray-400' : 'bg-gray-900 text-gray-100'}`}
+              >
+                <div className="flex justify-between">
+                  <span className="font-mono text-xs">ID: {order.orderId}</span>
+                  <span className="text-xs font-bold uppercase">{order.status}</span>
+                </div>
+                <div>Side: {order.side}</div>
+                <div>Price: {order.price}</div>
+                <div>Quantity: {order.quantity}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50">
+          {toast}
         </div>
       )}
     </div>

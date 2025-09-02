@@ -1,9 +1,13 @@
 import Redis from 'ioredis';
+import EventEmitter from 'events';
 const redis = new Redis();
 
 const BIDS_KEY = 'orderbook:bids';
 const ASKS_KEY = 'orderbook:asks';
 let orderCounter = 0;
+
+// Store user orders and their status
+const userOrders = new Map(); // orderId -> { ...order, status }
 
 async function initializeOrderBook() {
   console.log('Initializing order book in Redis...');
@@ -29,7 +33,7 @@ async function addOrderToBook(order, side) {
 
 // --- Matching Engine Logic ---
 // This class is NOT part of the Redis order book itself. It is a mock matching engine for demonstration.
-class MatchingEngine {
+class MatchingEngine extends EventEmitter {
   async matchOrders() {
     // Get best bid and ask
     const bestBidArr = await redis.zrevrange(BIDS_KEY, 0, 0, 'WITHSCORES');
@@ -44,7 +48,21 @@ class MatchingEngine {
     if (parseFloat(bidPrice) >= parseFloat(askPrice)) {
       // Match found
       const tradeSize = Math.min(parseFloat(bidSize), parseFloat(askSize));
-      console.log(`Trade executed: ${tradeSize} BTC @ ${askPrice} USDC`);
+      console.log(`${new Date().getTime()} - Trade executed: ${tradeSize} BTC @ ${askPrice} USDC`);
+
+
+      let filledBid = false, filledAsk = false;
+      if (tradeSize === parseFloat(bidSize)) {
+        this.updateOrderStatus(parseInt(bidId), 'filled');
+        filledBid = true;
+      }
+      if (tradeSize === parseFloat(askSize)) {
+        this.updateOrderStatus(parseInt(askId), 'filled');
+        filledAsk = true;
+      }
+      if (filledBid || filledAsk) {
+        this.emit('order_filled', { bidId: parseInt(bidId), askId: parseInt(askId), filledBid, filledAsk });
+      }
 
       // Update or remove bid
       if (tradeSize < parseFloat(bidSize)) {
@@ -69,15 +87,47 @@ class MatchingEngine {
   // Allow users to place orders via the matching engine
   async placeOrder({ side, price, size, n }) {
     const id = orderCounter++;
-    const order = { id, price: parseFloat(price), size: parseFloat(size), n: parseInt(n) };
+    const order = { id, price: parseFloat(price), size: parseFloat(size), n: parseInt(n), status: 'open', side };
+    userOrders.set(id, order); // Track order status
     await addOrderToBook(order, side);
     // Optionally, try to match after placing
     await this.matchOrders();
     return order;
   }
+
+  async placeMarketOrder({ side, size, n = 1 }) {
+    // Get best price from order book
+    let price;
+    if (side === 'buy') {
+      const bestAskArr = await redis.zrange(ASKS_KEY, 0, 0, 'WITHSCORES');
+      price = bestAskArr.length >= 2 ? parseFloat(bestAskArr[1]) : null;
+    } else {
+      const bestBidArr = await redis.zrevrange(BIDS_KEY, 0, 0, 'WITHSCORES');
+      price = bestBidArr.length >= 2 ? parseFloat(bestBidArr[1]) : null;
+    }
+    if (price == null) {
+      throw new Error('No liquidity for market order');
+    }
+    // Place order at best price
+    return await engine.placeOrder({ side, price, size, n });
+  }
+
+  // Update order status (called after matching)
+  updateOrderStatus(orderId, newStatus) {
+    const order = userOrders.get(orderId);
+    if (order) {
+      order.status = newStatus;
+      userOrders.set(orderId, order);
+    }
+  }
+
+  // Get order status by ID
+  getOrderStatus(orderId) {
+    return userOrders.get(orderId)?.status || null;
+  }
 }
 
-const engine = new MatchingEngine();
+export const engine = new MatchingEngine();
 
 async function simulateEngine() {
   // Add a random order

@@ -1,10 +1,17 @@
 import { WebSocketServer } from 'ws';
 import Redis from 'ioredis';
 
+// Import the instance for now, connect via WS later
+import { engine } from './marketData.mjs';
+
+
 
 const PORT = 4000;
 const wss = new WebSocketServer({ port: PORT });
 const redis = new Redis();
+
+const orderClientMap = new Map(); // orderId -> ws
+const userOrdersMap = new Map(); // ws -> Set<orderId>
 
 const BIDS_KEY = 'orderbook:bids';
 const ASKS_KEY = 'orderbook:asks';
@@ -54,9 +61,65 @@ const broadcast = async () => {
 
 wss.on('connection', (ws) => {
   console.log('Client connected');
-  // Send the initial state immediately on connection
   broadcast();
-  ws.on('close', () => console.log('Client disconnected'));
+
+  ws.on('message', async (msg) => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.type === 'market_order') {
+        const order = await engine.placeMarketOrder({ side: data.side, size: data.size, n: 1 });
+        const status = engine.getOrderStatus(order.id);
+        ws.send(JSON.stringify({ type: 'order_result', orderId: order.id, status, order }));
+        orderClientMap.set(order.id, ws); // Track client for this order
+
+        if (!userOrdersMap.has(ws)) userOrdersMap.set(ws, new Set());
+        userOrdersMap.get(ws).add(order.id);
+      }
+      if (data.type === 'order_status') {
+        const status = engine.getOrderStatus(data.orderId);
+        ws.send(JSON.stringify({ type: 'order_status', orderId: data.orderId, status }));
+      }
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', error: err.message }));
+    }
+  });
+
+    ws.on('close', () => {
+      console.log('Client disconnected');
+      const orderIds = userOrdersMap.get(ws);
+      if (orderIds) {
+        for (const orderId of orderIds) {
+          orderClientMap.delete(orderId);
+        }
+        userOrdersMap.delete(ws);
+      }
+    });
+});
+
+engine.on('order_filled', ({ bidId, askId, filledBid, filledAsk }) => {
+  if (filledBid) {
+    const wsBid = orderClientMap.get(bidId);
+
+    if (wsBid && wsBid.readyState === 1) {
+      const status = engine.getOrderStatus(bidId);
+      const order = engine.userOrders?.get?.(bidId) || {};
+      wsBid.send(JSON.stringify({ type: 'order_result', orderId: bidId, status, order }));
+      const orderIds = userOrdersMap.get(wsBid);
+      if (orderIds) orderIds.delete(bidId);
+    }
+    orderClientMap.delete(bidId);
+  }
+  if (filledAsk) {
+    const wsAsk = orderClientMap.get(askId);
+    if (wsAsk && wsAsk.readyState === 1) {
+      const status = engine.getOrderStatus(askId);
+      const order = engine.userOrders?.get?.(askId) || {};
+      wsAsk.send(JSON.stringify({ type: 'order_result', orderId: askId, status, order }));
+      const orderIds = userOrdersMap.get(wsAsk);
+      if (orderIds) orderIds.delete(askId);
+    }
+    orderClientMap.delete(askId);
+  }
 });
 
 // Broadcast updates every 100ms

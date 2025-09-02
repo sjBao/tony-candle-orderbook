@@ -96,20 +96,42 @@ class MatchingEngine extends EventEmitter {
   }
 
   async placeMarketOrder({ side, size, n = 1 }) {
-    // Get best price from order book
-    let price;
-    if (side === 'buy') {
-      const bestAskArr = await redis.zrange(ASKS_KEY, 0, 0, 'WITHSCORES');
-      price = bestAskArr.length >= 2 ? parseFloat(bestAskArr[1]) : null;
-    } else {
-      const bestBidArr = await redis.zrevrange(BIDS_KEY, 0, 0, 'WITHSCORES');
-      price = bestBidArr.length >= 2 ? parseFloat(bestBidArr[1]) : null;
+    // Fill as much as possible, cancel remainder
+    let remaining = parseFloat(size);
+    let totalFilled = 0;
+    let orderId = null;
+    let pricesFilled = [];
+    while (remaining > 0) {
+      let price;
+      let available;
+      if (side === 'buy') {
+        const bestAskArr = await redis.zrange(ASKS_KEY, 0, 0, 'WITHSCORES');
+        if (bestAskArr.length < 2) break;
+        price = parseFloat(bestAskArr[1]);
+        const [_id, availSize] = bestAskArr[0].split(':');
+        available = parseFloat(availSize);
+      } else {
+        const bestBidArr = await redis.zrevrange(BIDS_KEY, 0, 0, 'WITHSCORES');
+        if (bestBidArr.length < 2) break;
+        price = parseFloat(bestBidArr[1]);
+        const [_id, availSize] = bestBidArr[0].split(':');
+        available = parseFloat(availSize);
+      }
+      const fillSize = Math.min(remaining, available);
+      const order = await this.placeOrder({ side, price, size: fillSize, n });
+      if (!orderId) orderId = order.id;
+      pricesFilled.push({ price, size: fillSize });
+      totalFilled += fillSize;
+      remaining -= fillSize;
     }
-    if (price == null) {
-      throw new Error('No liquidity for market order');
+    // If not fully filled, mark remainder as canceled and return 'partial' status
+    let status = 'filled';
+    if (remaining > 0 && orderId) {
+      this.updateOrderStatus(orderId, 'canceled');
+      status = totalFilled > 0 ? 'partial' : 'canceled';
     }
-    // Place order at best price
-    return await engine.placeOrder({ side, price, size, n });
+    if (!orderId) throw new Error('No liquidity for market order');
+    return { orderId, totalFilled, pricesFilled, status };
   }
 
   // Update order status (called after matching)

@@ -67,13 +67,24 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(msg);
       if (data.type === 'market_order') {
-        const order = await engine.placeMarketOrder({ side: data.side, size: data.size, n: 1 });
-        const status = engine.getOrderStatus(order.id);
-        ws.send(JSON.stringify({ type: 'order_result', orderId: order.id, status, order }));
-        orderClientMap.set(order.id, ws); // Track client for this order
-
+        const result = await engine.placeMarketOrder({ side: data.side, size: data.size, n: 1 });
+        // result: { orderId, totalFilled, pricesFilled, status }
+        ws.send(JSON.stringify({
+          type: 'order_result',
+          orderId: result.orderId,
+          status: result.status,
+          order: {
+            orderId: result.orderId,
+            side: data.side,
+            price: result.pricesFilled.length > 0 ? result.pricesFilled[0].price : null,
+            quantity: data.size,
+            filled: result.totalFilled,
+            pricesFilled: result.pricesFilled,
+          }
+        }));
+        orderClientMap.set(result.orderId, ws);
         if (!userOrdersMap.has(ws)) userOrdersMap.set(ws, new Set());
-        userOrdersMap.get(ws).add(order.id);
+        userOrdersMap.get(ws).add(result.orderId);
       }
       if (data.type === 'order_status') {
         const status = engine.getOrderStatus(data.orderId);

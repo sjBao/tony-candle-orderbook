@@ -7,7 +7,15 @@ export default function TradeWidget() {
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [orders, setOrders] = useState<Record<number, { orderId: number; side: string; price: string; quantity: string; status: string }>>({});
+  const [orders, setOrders] = useState<Record<number, {
+    orderId: number;
+    side: string;
+    price: string;
+    quantity: string;
+    status: string;
+    filled?: number;
+    pricesFilled?: Array<{ price: number; size: number }>;
+  }>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [bestPrice, setBestPrice] = useState<string>('');
   const wsRef = useRef<WebSocket | null>(null);
@@ -18,9 +26,15 @@ export default function TradeWidget() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'order_result') {
+          let toastMsg = '';
           if (msg.status === "filled") {
-            setToast(`Order fulfilled! Order ID: ${msg.orderId}`);
+            toastMsg = `Order filled! Order ID: ${msg.orderId}`;
+          } else if (msg.status === "partial") {
+            toastMsg = `Order partially filled! Order ID: ${msg.orderId}`;
+          } else if (msg.status === "canceled") {
+            toastMsg = `Order canceled (no liquidity)! Order ID: ${msg.orderId}`;
           }
+          if (toastMsg) setToast(toastMsg);
           setTimeout(() => setToast(null), 4000);
           setOrders(prev => ({
             ...prev,
@@ -28,8 +42,10 @@ export default function TradeWidget() {
               orderId: msg.orderId,
               side: msg.order.side || prev[msg.orderId]?.side,
               price: msg.order.price || prev[msg.orderId]?.price,
-              quantity: msg.order.size || prev[msg.orderId]?.quantity,
-              status: msg.status || 'filled',
+              quantity: msg.order.quantity || prev[msg.orderId]?.quantity,
+              status: msg.status,
+              filled: msg.order.filled,
+              pricesFilled: msg.order.pricesFilled,
             },
           }));
         }
@@ -131,7 +147,7 @@ export default function TradeWidget() {
             {Object.values(orders).map(order => (
               <li
                 key={order.orderId}
-                className={`p-2 rounded flex flex-col ${order.status === 'filled' ? 'bg-gray-700 text-gray-400' : 'bg-gray-900 text-gray-100'}`}
+                className={`p-2 rounded flex flex-col ${order.status === 'filled' ? 'bg-gray-700 text-gray-400' : order.status === 'partial' ? 'bg-yellow-700 text-yellow-100' : order.status === 'canceled' ? 'bg-red-700 text-red-100' : 'bg-gray-900 text-gray-100'}`}
               >
                 <div className="flex justify-between">
                   <span className="font-mono text-xs">ID: {order.orderId}</span>
@@ -140,6 +156,12 @@ export default function TradeWidget() {
                 <div>Side: {order.side}</div>
                 <div>Price: {order.price}</div>
                 <div>Quantity: {order.quantity}</div>
+                {order.status === 'partial' && (
+                  <div className="text-xs mt-1">Filled: {order.filled} (across {order.pricesFilled?.length} price levels)</div>
+                )}
+                {order.status === 'canceled' && (
+                  <div className="text-xs mt-1">No liquidity for requested size</div>
+                )}
               </li>
             ))}
           </ul>

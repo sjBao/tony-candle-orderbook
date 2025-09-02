@@ -74,10 +74,10 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
   }, [bidRowData[bidRowData.length - 1], askRowData[0]])
 
   if (wsReady === false) {
-    return <div>Loading...</div>;
+    return <div className='w-90'>Loading...</div>;
   }
   return (
-    <div className="flex flex-col gap-4 font-mono w-120">
+    <div className="flex flex-col gap-4 font-mono w-90">
       <div className='flex flex-col gap-3'>
         <div>
           <h2 className="text-xl font-semibold">Asks</h2>

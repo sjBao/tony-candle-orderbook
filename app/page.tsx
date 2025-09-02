@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import OrderBook, { type Order } from './components/OrderBook';
-import TradingViewTsx from './components/TradingView';
+// import TradingViewTsx from './components/TradingView';
 import LightweightChart from './components/LightweightChart';
+import TradeWidget from './components/TradeWidget';
 
 export default function Home() {
   const mockSocket = useRef<NodeJS.Timeout | null>(null);
@@ -21,10 +22,14 @@ export default function Home() {
 
   return (
     <div className='p-4 h-screen flex flex-col'>
-      <main className="flex gap-[32px] item-stretch row-start-2 items-center sm:items-start flex-grow">
-        {/* <TradingViewTsx /> */}
-        <LightweightChart />
-        <OrderBook bids={orderbookData?.bids} asks={orderbookData?.asks} />
+      <main className="flex flex-row gap-4 h-full">
+        <div className="flex-1 min-w-0">
+          <LightweightChart />
+        </div>
+        <div className="flex gap-4">
+          <OrderBook bids={orderbookData?.bids} asks={orderbookData?.asks} />
+          <TradeWidget />
+        </div>
       </main>
     </div>
   );

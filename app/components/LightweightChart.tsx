@@ -20,7 +20,7 @@ const ChartComponent = forwardRef((props: any, ref) => {
                 secondsVisible: true,
             },
             width: chartContainerRef.current.clientWidth,
-            height: 300,
+            height: 1000,
             layout: {
                 background: { type: ColorType.Solid, color: '#0F0F0F' },
                 textColor: '#d1d4dc',
@@ -141,7 +141,7 @@ export default function LightweightChart() {
     const chartRef = useRef<IChartApi>(null);
 
     return (
-        <ChartComponent ref={chartRef} className="w-3/4">
+        <ChartComponent ref={chartRef} className="w-full">
             <SeriesComponent />
         </ChartComponent>
     );

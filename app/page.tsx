@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import OrderBook, { type Order } from './components/OrderBook';
-import TradingViewTsx from './components/TradingView.tsx';
+import TradingViewTsx from './components/TradingView';
 import LightweightChart from './components/LightweightChart';
 
 export default function Home() {

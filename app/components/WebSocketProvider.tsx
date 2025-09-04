@@ -65,7 +65,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    const socket = new window.WebSocket('ws://localhost:4000');
+    const socket = new window.WebSocket('ws://134.122.15.203:4000');
     setWs(socket);
     socket.onmessage = (event) => {
       try {

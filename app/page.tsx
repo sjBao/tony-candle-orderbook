@@ -22,8 +22,8 @@ export default function Home() {
 
   return (
     <div className='p-4 h-screen flex flex-col'>
-      <main className="flex flex-row gap-4 h-full">
-        <div className="flex-1 min-w-0">
+      <main className="flex flex-row gap-4 h-full flex-wrap">
+        <div className="flex-1 min-w-100">
           <LightweightChart />
         </div>
         <div className="flex gap-4">

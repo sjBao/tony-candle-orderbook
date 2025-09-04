@@ -1,8 +1,9 @@
 "use client";
 
-import { CandlestickData, CandlestickSeries, ColorType, createChart, IChartApi, UTCTimestamp } from 'lightweight-charts';
+import { CandlestickSeries, ColorType, createChart, IChartApi, UTCTimestamp } from 'lightweight-charts';
 import { createContext, forwardRef, PropsWithChildren, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { useWebSocketSubscription, CandleMsg } from './WebSocketProvider';
+import { getMockHistoricalCandleData } from '../lib/getMockHistoricalCandleData';
+import { CandleMsg, useWebSocketSubscription } from './WebSocketProvider';
 
 export const ChartContext = createContext<IChartApi | null>(null);
 
@@ -20,7 +21,7 @@ const ChartComponent = forwardRef((props: PropsWithChildren<{className: string}>
         secondsVisible: true,
       },
       width: chartContainerRef.current.clientWidth,
-      height: 1000,
+      height: 700,
       layout: {
         background: { type: ColorType.Solid, color: '#0F0F0F' },
         textColor: '#d1d4dc',
@@ -71,7 +72,6 @@ ChartComponent.displayName = 'ChartComponent';
 export function SeriesComponent() {
   const chart = useContext(ChartContext);
   const [series, setSeries] = useState<ReturnType<IChartApi['addSeries']> | null>(null);
-  const [candles, setCandles] = useState<CandlestickData[]>([]);
 
   useEffect(() => {
     if (!chart) return;
@@ -90,22 +90,25 @@ export function SeriesComponent() {
 
   useEffect(() => {
     if (!series) return;
-    series.setData(candles);
-  }, [series, candles]);
+
+    // In a real system, we'd fetch this data from time-series database
+    const initialCandleData = getMockHistoricalCandleData();
+
+    series.setData(initialCandleData);
+  }, [series]);
+
+  function updateCandle(newCandle: CandleMsg['candle']) {
+    series?.update({
+      time: Math.floor(newCandle.time / 1000) as UTCTimestamp,
+      open: newCandle.open,
+      high: newCandle.high,
+      low: newCandle.low,
+      close: newCandle.close,
+    });
+  }
 
   useWebSocketSubscription<CandleMsg>('candle', (msg) => {
-    if (msg.candle) {
-      setCandles(prev => [
-        ...prev,
-        {
-          time: Math.floor(msg.candle.time / 1000) as UTCTimestamp,
-          open: msg.candle.open,
-          high: msg.candle.high,
-          low: msg.candle.low,
-          close: msg.candle.close,
-        }
-      ]);
-    }
+    if (msg.candle) updateCandle(msg.candle);
   });
 
   return null;

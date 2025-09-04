@@ -1,5 +1,6 @@
 "use client"
 
+import { UTCTimestamp } from 'lightweight-charts';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 
@@ -7,7 +8,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 export interface CandleMsg {
   type: 'candle';
   candle: {
-    time: number;
+    time: UTCTimestamp;
     open: number;
     high: number;
     low: number;

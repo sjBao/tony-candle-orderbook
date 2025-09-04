@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { createFormatter } from '../lib/formatter';
-import { useWebSocketSubscription } from './WebSocketProvider';
+import { useWebSocketSubscription, OrderBookMsg } from './WebSocketProvider';
 
 export interface Order {
   price: number;
@@ -26,7 +26,7 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
   const [wsReady, setWsReady] = useState(false);
   const [orderbookData, setOrderbookData] = useState<{ bids: Order[]; asks: Order[] }>({ bids, asks });
 
-  useWebSocketSubscription('orderbook', (msg) => {
+  useWebSocketSubscription<OrderBookMsg>('orderbook', (msg) => {
     setOrderbookData({ bids: msg.bids || [], asks: msg.asks || [] });
     setWsReady(true);
   });
@@ -49,7 +49,7 @@ const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
 
   const highestVolume = useMemo(() => {
     return Math.max(bidRowData[bidRowData.length - 1]?.total || 0, askRowData[0]?.total || 0)
-  }, [bidRowData[bidRowData.length - 1], askRowData[0]])
+  }, [bidRowData, askRowData])
 
   if (wsReady === false) {
     return <div className='w-90'>Loading...</div>;

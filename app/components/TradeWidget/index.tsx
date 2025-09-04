@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useContext } from 'react';
-import { useWebSocketSubscription, WebSocketContext } from '../WebSocketProvider';
+import { useWebSocketSubscription, WebSocketContext, OrderResultMsg, OrderBookMsg } from '../WebSocketProvider';
 
 export default function TradeWidget() {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
@@ -22,7 +22,7 @@ export default function TradeWidget() {
 
   const wsContext = useContext(WebSocketContext);
 
-  useWebSocketSubscription('order_result', (msg) => {
+  useWebSocketSubscription<OrderResultMsg>('order_result', (msg) => {
     let toastMsg = '';
     if (msg.status === "filled") {
       toastMsg = `Order filled! Order ID: ${msg.orderId}`;
@@ -47,7 +47,7 @@ export default function TradeWidget() {
     }));
   });
 
-  useWebSocketSubscription('orderbook', (msg) => {
+  useWebSocketSubscription<OrderBookMsg>('orderbook', (msg) => {
     if (orderType === 'market') {
       if (side === 'buy' && msg.asks.length > 0) {
         setBestPrice(msg.asks[0].price.toString());

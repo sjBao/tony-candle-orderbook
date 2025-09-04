@@ -2,22 +2,56 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+
+// --- Message Types ---
+export interface CandleMsg {
+  type: 'candle';
+  candle: {
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume?: number;
+  };
+}
+export interface OrderBookMsg {
+  type: 'orderbook';
+  bids: Array<{ price: number; size: number; quantity: number }>;
+  asks: Array<{ price: number; size: number; quantity: number }>;
+}
+export interface OrderResultMsg {
+  type: 'order_result';
+  orderId: number;
+  status: string;
+  order: {
+    side: string;
+    price: string;
+    quantity: string;
+    filled?: number;
+    pricesFilled?: Array<{ price: number; size: number }>;
+  };
+}
+export type MessageData = CandleMsg | OrderBookMsg | OrderResultMsg;
+export type MessageHandler<T extends MessageData> = (data: T) => void;
+
 // --- EventEmitter for message subscriptions ---
 class MessageEmitter {
-  listeners: { [type: string]: ((data: any) => void)[] } = {};
+  listeners: { [type: string]: MessageHandler<MessageData>[] } = {};
 
-  on(type: string, fn: (data: any) => void) {
+  on<T extends MessageData>(type: T['type'], fn: MessageHandler<T>): () => void {
     if (!this.listeners[type]) this.listeners[type] = [];
-    this.listeners[type].push(fn);
+    // TypeScript can't guarantee fn is MessageHandler<MessageData>, but we know it's safe
+    this.listeners[type].push(fn as MessageHandler<MessageData>);
     return () => this.off(type, fn);
   }
 
-  off(type: string, fn: (data: any) => void) {
+  off<T extends MessageData>(type: T['type'], fn: MessageHandler<T>): void {
     if (!this.listeners[type]) return;
-    this.listeners[type] = this.listeners[type].filter(f => f !== fn);
+    this.listeners[type] = this.listeners[type].filter(f => f !== (fn as MessageHandler<MessageData>));
   }
 
-  emit(type: string, data: any) {
+  emit<T extends MessageData>(type: T['type'], data: T): void {
     if (!this.listeners[type]) return;
     this.listeners[type].forEach(fn => fn(data));
   }
@@ -54,7 +88,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 };
 
-export function useWebSocketSubscription(type: string, handler: (data: any) => void) {
+export function useWebSocketSubscription<T extends MessageData>(type: T['type'], handler: MessageHandler<T>) {
   const context = useContext(WebSocketContext);
   useEffect(() => {
     if (!context) return;

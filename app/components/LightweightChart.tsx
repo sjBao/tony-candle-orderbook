@@ -1,12 +1,12 @@
 "use client";
 
 import { CandlestickData, CandlestickSeries, ColorType, createChart, IChartApi, UTCTimestamp } from 'lightweight-charts';
-import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { useWebSocketSubscription } from './WebSocketProvider';
+import { createContext, forwardRef, PropsWithChildren, useContext, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { useWebSocketSubscription, CandleMsg } from './WebSocketProvider';
 
 export const ChartContext = createContext<IChartApi | null>(null);
 
-const ChartComponent = forwardRef((props: any, ref) => {
+const ChartComponent = forwardRef((props: PropsWithChildren<{className: string}>, ref) => {
   const { children, ...rest } = props;
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chart, setChart] = useState<IChartApi | null>(null);
@@ -93,7 +93,7 @@ export function SeriesComponent() {
     series.setData(candles);
   }, [series, candles]);
 
-  useWebSocketSubscription('candle', (msg) => {
+  useWebSocketSubscription<CandleMsg>('candle', (msg) => {
     if (msg.candle) {
       setCandles(prev => [
         ...prev,

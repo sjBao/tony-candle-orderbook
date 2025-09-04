@@ -86,6 +86,24 @@ wss.on('connection', (ws) => {
         if (!userOrdersMap.has(ws)) userOrdersMap.set(ws, new Set());
         userOrdersMap.get(ws).add(result.orderId);
       }
+
+      if (data.type === 'limit_order') {
+        const result = await engine.placeOrder({ side: data.side, price: data.price, size: data.size, n: 1 });
+        
+        ws.send(JSON.stringify({
+          type: 'order_result',
+          orderId: result.id,
+          status: 'open',
+          order: {
+            orderId: result.id,
+            side: data.side,
+            price: data.price,
+            quantity: data.size,
+          }
+        }));
+        orderClientMap.set(result.id, ws);
+      }
+
       if (data.type === 'order_status') {
         const status = engine.getOrderStatus(data.orderId);
         ws.send(JSON.stringify({ type: 'order_status', orderId: data.orderId, status }));

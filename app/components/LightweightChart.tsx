@@ -108,7 +108,6 @@ export function SeriesComponent() {
   }
 
   useWebSocketSubscription<CandleMsg>('candle', (msg) => {
-    console.log("*******", { msg })
     if (msg.candle) updateCandle(msg.candle);
   });
 

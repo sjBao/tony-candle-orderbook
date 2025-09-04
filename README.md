@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# Tony Candle Orderbook — Real-Time Trading Terminal Demo
 
-First, run the development server:
+This project is a full-stack prototype of a real-time trading terminal, designed to demonstrate my ability to build and deploy modern WebSocket-based systems. It features:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Next.js frontend** for interactive trading UI and live charting
+- **Node.js backend** with a mock matching engine and order book
+- **WebSocket server** for real-time data streaming (order book, trades, candlesticks)
+- **Redis** for fast in-memory order book storage
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## System Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Frontend:**
+- Built with React/Next.js
+- Displays a candlestick chart (TradingView Lightweight Charts)
+- Shows live order book and trade widget
+- Connects to backend via a single shared WebSocket for all real-time updates
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Backend:**
+- Node.js services:
+  - `mock_services/marketData.mjs`: Matching engine, order book, trade/candlestick aggregation
+  - `mock_services/marketWebsocket.mjs`: WebSocket server, broadcasts all market events
+- Redis for order book state
 
-## Learn More
+**WebSocket System:**
+- All real-time events (order book, trades, candlesticks, order status) are sent over a single WebSocket connection
+- Frontend uses a custom React context and event emitter to handle multiple event types efficiently
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment (DigitalOcean)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The prototype is deployed on a single DigitalOcean droplet (Ubuntu):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Clone repo & install dependencies**
+	```sh
+	git clone https://github.com/sjBao/tony-candle-orderbook.git
+	cd tony-candle-orderbook
+	pnpm install
+	```
+2. **Install Redis**
+	```sh
+	apt-get update && apt-get install -y redis-server
+	systemctl enable redis-server && systemctl start redis-server
+	```
+3. **Build and start Next.js app**
+	```sh
+	pnpm build
+	pnpm start
+	```
+4. **Start backend services (using pm2 for reliability)**
+	```sh
+	node mock_services/marketData.mjs
+	node start mock_services/marketWebsocket.mjs
+	```
 
-## Deploy on Vercel
+## Key Features
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Real-time candlestick chart updates via WebSocket
+- Live order book and trade status tracking
+- Support for market and limit orders, partial fills, and order lifecycle events
+- Responsive UI (chart stacks below widgets on tablet/mobile)
+- Robust, type-safe WebSocket event handling in React
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+**Live Demo:** 
+- http://134.122.15.203:3000/
+
+---
+
